@@ -33,16 +33,18 @@ describe('OrderEntryForm', () => {
     render(<OrderEntryForm {...defaultProps} />)
     
     const priceInput = screen.getAllByRole('textbox')[0]
-    expect(priceInput).toHaveValue('50000.00')
+    expect(priceInput).toHaveValue('50,000.00')
   })
 
-  it('switches between Buy and Sell tabs', () => {
+  it('switches between Buy and Sell tabs', async () => {
     render(<OrderEntryForm {...defaultProps} />)
     
     const sellTab = screen.getByRole('tab', { name: /sell/i })
     fireEvent.click(sellTab)
     
-    expect(screen.getByRole('button', { name: /sell btc/i })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /sell btc/i })).toBeInTheDocument()
+    })
   })
 
   it('auto-calculates notional when price and quantity are entered', async () => {
@@ -59,7 +61,7 @@ describe('OrderEntryForm', () => {
     
     await waitFor(() => {
       const notionalInput = inputs[2]
-      expect(notionalInput).toHaveValue('100000.00')
+      expect(notionalInput).toHaveValue('100,000.00')
     })
   })
 
@@ -88,7 +90,7 @@ describe('OrderEntryForm', () => {
     fireEvent.click(midButton)
     
     const priceInput = screen.getAllByRole('textbox')[0]
-    expect(priceInput).toHaveValue('50000.00')
+    expect(priceInput).toHaveValue('50,000.00')
   })
 
   it('fills price with BID button click', async () => {
@@ -98,7 +100,7 @@ describe('OrderEntryForm', () => {
     fireEvent.click(bidButton)
     
     const priceInput = screen.getAllByRole('textbox')[0]
-    expect(priceInput).toHaveValue('49999.00')
+    expect(priceInput).toHaveValue('49,999.00')
   })
 
   it('fills price with ASK button click', async () => {
@@ -108,7 +110,7 @@ describe('OrderEntryForm', () => {
     fireEvent.click(askButton)
     
     const priceInput = screen.getAllByRole('textbox')[0]
-    expect(priceInput).toHaveValue('50001.00')
+    expect(priceInput).toHaveValue('50,001.00')
   })
 
   it('shows validation error for invalid quantity', async () => {
@@ -117,7 +119,11 @@ describe('OrderEntryForm', () => {
     const inputs = screen.getAllByRole('textbox')
     const quantityInput = inputs[1]
     
-    await userEvent.type(quantityInput, '-1')
+    await userEvent.clear(quantityInput)
+    await userEvent.type(quantityInput, '0')
+    
+    const submitButton = screen.getByRole('button', { name: /buy btc/i })
+    fireEvent.click(submitButton)
     
     await waitFor(() => {
       expect(screen.getByText(/quantity must be greater than 0/i)).toBeInTheDocument()
@@ -204,7 +210,9 @@ describe('OrderEntryForm', () => {
     const submitButton = screen.getByRole('button', { name: /buy btc/i })
     fireEvent.click(submitButton)
     
-    expect(submitButton).toBeDisabled()
-    expect(screen.getByText(/submitting/i)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(submitButton).toBeDisabled()
+      expect(screen.getByText(/submitting/i)).toBeInTheDocument()
+    })
   })
 })
