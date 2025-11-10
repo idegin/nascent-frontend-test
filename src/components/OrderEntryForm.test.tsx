@@ -42,9 +42,8 @@ describe('OrderEntryForm', () => {
     const sellTab = screen.getByRole('tab', { name: /sell/i })
     fireEvent.click(sellTab)
     
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /sell btc/i })).toBeInTheDocument()
-    })
+    const sellButton = await screen.findByRole('button', { name: /sell btc/i })
+    expect(sellButton).toBeInTheDocument()
   })
 
   it('auto-calculates notional when price and quantity are entered', async () => {
