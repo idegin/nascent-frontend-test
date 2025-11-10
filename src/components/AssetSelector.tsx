@@ -10,7 +10,7 @@ interface AssetSelectorProps {
 export default function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorProps) {
   return (
     <Tabs value={selectedAsset} onValueChange={(value) => onAssetChange(value as Asset)}>
-      <TabsList className="bg-secondary/30 border border-border">
+      <TabsList>
         <TabsTrigger value="BTC">
           <IconCurrencyBitcoin className="size-4" />
           Bitcoin

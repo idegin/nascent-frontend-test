@@ -1,10 +1,24 @@
-// Skeleton for API calls
+import { Asset, OrderBook, Order } from '../types'
 
-// Orderbook API
-export const getOrderbook = () => {
+export const getOrderbook = async (asset: Asset): Promise<OrderBook> => {
+  const response = await fetch(`/orderbook/${asset}`)
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch orderbook')
+  }
+  
+  return response.json()
 }
 
-// Trade API
-export const sendTrade = () => {
-
+export const sendTrade = async (order: Order): Promise<void> => {
+  const response = await fetch('/trade', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(order)
+  })
+  
+  if (!response.ok) {
+    const data = await response.json()
+    throw new Error(data.error || 'Order failed')
+  }
 }

@@ -1,242 +1,290 @@
 import { useState, useEffect } from 'react'
-import { Asset, OrderSide, OrderType, Order } from '@/types'
-import { Card, CardContent } from './ui/card'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs'
-import { Input } from './ui/input'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import * as z from 'zod'
+import { Asset, OrderSide, Order } from '@/types'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
+import { Tabs, TabsList, TabsTrigger } from './ui/tabs'
 import { Button } from './ui/button'
-import { IconShoppingCart, IconInfoCircle } from '@tabler/icons-react'
+import { Skeleton } from './ui/skeleton'
+import { CurrencyInput } from './ui/currency-input'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from './ui/form'
+import { IconShoppingCart } from '@tabler/icons-react'
+
+const orderFormSchema = z.object({
+    price: z.string().refine((val) => {
+        const num = parseFloat(val)
+        return !isNaN(num) && num > 0
+    }, { message: 'Price must be greater than 0' }),
+    quantity: z.string().refine((val) => {
+        const num = parseFloat(val)
+        return !isNaN(num) && num > 0
+    }, { message: 'Quantity must be greater than 0' }),
+    notional: z.string().refine((val) => {
+        const num = parseFloat(val)
+        return !isNaN(num) && num > 0
+    }, { message: 'Total must be greater than 0' })
+})
+
+type OrderFormValues = z.infer<typeof orderFormSchema>
 
 interface OrderEntryFormProps {
-  asset: Asset
-  midPrice: number
-  bestBid: number
-  bestAsk: number
+    asset: Asset
+    midPrice: number
+    bestBid: number
+    bestAsk: number
+    onSubmit: (order: Order) => Promise<void>
+    isLoading?: boolean
 }
 
-export default function OrderEntryForm({ asset, midPrice, bestBid, bestAsk }: OrderEntryFormProps) {
-  const [side, setSide] = useState<OrderSide>('BUY')
-  const [orderType, setOrderType] = useState<OrderType>('LIMIT')
-  const [price, setPrice] = useState('')
-  const [quantity, setQuantity] = useState('')
-  const [notional, setNotional] = useState('')
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+export default function OrderEntryForm({ asset, midPrice, bestBid, bestAsk, onSubmit, isLoading = false }: OrderEntryFormProps) {
+    const [side, setSide] = useState<OrderSide>('BUY')
+    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
-  useEffect(() => {
-    if (orderType === 'LIMIT' && !price) {
-      setPrice(midPrice.toFixed(2))
-    }
-  }, [midPrice, orderType, price])
+    const form = useForm<OrderFormValues>({
+        resolver: zodResolver(orderFormSchema),
+        defaultValues: {
+            price: midPrice.toFixed(2),
+            quantity: '',
+            notional: ''
+        },
+        mode: 'onChange'
+    })
 
-  const handlePriceChange = (value: string) => {
-    if (value === '' || !isNaN(parseFloat(value))) {
-      setPrice(value)
-      if (quantity && value) {
-        const calculatedNotional = parseFloat(quantity) * parseFloat(value)
-        setNotional(calculatedNotional.toFixed(2))
-      }
-    }
-  }
+    useEffect(() => {
+        if (!form.getValues('price')) {
+            form.setValue('price', midPrice.toFixed(2))
+        }
+    }, [midPrice, form])
 
-  const handleQuantityChange = (value: string) => {
-    if (value === '' || !isNaN(parseFloat(value))) {
-      setQuantity(value)
-      if (price && value) {
-        const calculatedNotional = parseFloat(value) * parseFloat(price)
-        setNotional(calculatedNotional.toFixed(2))
-      }
-    }
-  }
-
-  const handleNotionalChange = (value: string) => {
-    if (value === '' || !isNaN(parseFloat(value))) {
-      setNotional(value)
-      if (price && value) {
-        const calculatedQuantity = parseFloat(value) / parseFloat(price)
-        setQuantity(calculatedQuantity.toFixed(8))
-      }
-    }
-  }
-
-  const handleQuickFill = (type: 'MID' | 'BID' | 'ASK') => {
-    const priceValue = type === 'MID' ? midPrice : type === 'BID' ? bestBid : bestAsk
-    setPrice(priceValue.toFixed(2))
-    if (quantity) {
-      const calculatedNotional = parseFloat(quantity) * priceValue
-      setNotional(calculatedNotional.toFixed(2))
-    }
-  }
-
-  const validateForm = () => {
-    if (orderType === 'LIMIT' && (!price || parseFloat(price) <= 0)) {
-      setMessage({ type: 'error', text: 'Price must be greater than 0' })
-      return false
-    }
-    if (!quantity || parseFloat(quantity) <= 0) {
-      setMessage({ type: 'error', text: 'Quantity must be greater than 0' })
-      return false
-    }
-    if (!notional || parseFloat(notional) <= 0) {
-      setMessage({ type: 'error', text: 'Total must be greater than 0' })
-      return false
-    }
-    return true
-  }
-
-  const handleSubmit = async () => {
-    setMessage(null)
-    
-    if (!validateForm()) return
-
-    setIsSubmitting(true)
-
-    const order: Order = {
-      asset,
-      side,
-      type: orderType,
-      quantity: parseFloat(quantity),
-      price: orderType === 'LIMIT' ? parseFloat(price) : undefined,
-      notional: parseFloat(notional)
+    const handlePriceChange = (value: string | undefined) => {
+        if (value) {
+            form.setValue('price', value, { shouldValidate: true })
+            const quantity = form.getValues('quantity')
+            if (quantity && value) {
+                const calculatedNotional = parseFloat(quantity) * parseFloat(value)
+                form.setValue('notional', calculatedNotional.toFixed(2), { shouldValidate: true })
+            }
+        } else {
+            form.setValue('price', '', { shouldValidate: true })
+        }
     }
 
-    try {
-      const response = await fetch('/trade', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(order)
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setMessage({ type: 'error', text: data.error || 'Order failed' })
-      } else {
-        setMessage({ type: 'success', text: `Order placed successfully! ID: ${data.id}` })
-        setQuantity('')
-        setNotional('')
-        if (orderType === 'LIMIT') setPrice(midPrice.toFixed(2))
-      }
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Network error. Please try again.' })
-    } finally {
-      setIsSubmitting(false)
+    const handleQuantityChange = (value: string | undefined) => {
+        if (value) {
+            form.setValue('quantity', value, { shouldValidate: true })
+            const price = form.getValues('price')
+            if (price && value) {
+                const calculatedNotional = parseFloat(value) * parseFloat(price)
+                form.setValue('notional', calculatedNotional.toFixed(2), { shouldValidate: true })
+            }
+        } else {
+            form.setValue('quantity', '', { shouldValidate: true })
+        }
     }
-  }
 
-  return (
-    <Card className="border-border/50 shadow-lg">
-      <CardContent className="p-6 space-y-6">
-        <Tabs value={side} onValueChange={(value) => setSide(value as OrderSide)}>
-          <TabsList className="w-full bg-secondary/30">
-            <TabsTrigger value="BUY" className="flex-1">
-              Buy
-            </TabsTrigger>
-            <TabsTrigger value="SELL" className="flex-1">
-              Sell
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+    const handleNotionalChange = (value: string | undefined) => {
+        if (value) {
+            form.setValue('notional', value, { shouldValidate: true })
+            const price = form.getValues('price')
+            const priceNum = parseFloat(price)
+            if (price && value && !isNaN(priceNum) && priceNum > 0) {
+                const calculatedQuantity = parseFloat(value) / priceNum
+                form.setValue('quantity', calculatedQuantity.toFixed(8), { shouldValidate: true })
+            }
+        } else {
+            form.setValue('notional', '', { shouldValidate: true })
+        }
+    }
 
-        <Tabs value={orderType} onValueChange={(value) => {
-          setOrderType(value as OrderType)
-          if (value === 'MARKET') {
-            setPrice('')
-          } else {
-            setPrice(midPrice.toFixed(2))
-          }
-        }}>
-          <TabsList className="w-full bg-secondary/20">
-            <TabsTrigger value="LIMIT" className="flex-1">Limit</TabsTrigger>
-            <TabsTrigger value="MARKET" className="flex-1">Market</TabsTrigger>
-          </TabsList>
+    const handleQuickFill = (type: 'MID' | 'BID' | 'ASK') => {
+        const priceValue = type === 'MID' ? midPrice : type === 'BID' ? bestBid : bestAsk
+        form.setValue('price', priceValue.toFixed(2), { shouldValidate: true })
+        const quantity = form.getValues('quantity')
+        if (quantity) {
+            const calculatedNotional = parseFloat(quantity) * priceValue
+            form.setValue('notional', calculatedNotional.toFixed(2), { shouldValidate: true })
+        }
+    }
 
-          <TabsContent value="LIMIT" className="space-y-4 mt-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Limit Price</label>
-              <div className="flex gap-2">
-                <Input
-                  type="text"
-                  placeholder="0.00"
-                  value={price}
-                  onChange={(e) => handlePriceChange(e.target.value)}
-                  className="flex-1 font-mono"
-                />
-                <span className="flex items-center text-sm text-muted-foreground">USD</span>
-              </div>
-              <div className="flex gap-2 mt-2">
-                <Button size="sm" variant="outline" onClick={() => handleQuickFill('MID')} className="text-xs">
-                  MID
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleQuickFill('BID')} className="text-xs">
-                  BID
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleQuickFill('ASK')} className="text-xs">
-                  ASK
-                </Button>
-              </div>
-            </div>
-          </TabsContent>
+    const handleFormSubmit = async (data: OrderFormValues) => {
+        setMessage(null)
+        setIsSubmitting(true)
 
-          <TabsContent value="MARKET" className="space-y-4 mt-4">
-            <div className="p-3 bg-secondary/20 rounded-md border border-border/50">
-              <div className="flex items-start gap-2">
-                <IconInfoCircle className="size-4 text-muted-foreground mt-0.5" />
-                <p className="text-xs text-muted-foreground">
-                  Market orders execute immediately at the best available price.
-                </p>
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+        const order: Order = {
+            asset,
+            side,
+            type: 'LIMIT',
+            quantity: parseFloat(data.quantity),
+            price: parseFloat(data.price),
+            notional: parseFloat(data.notional)
+        }
 
-        <div>
-          <label className="text-sm font-medium mb-2 block">Amount</label>
-          <div className="flex gap-2">
-            <Input
-              type="text"
-              placeholder="0.00000000"
-              value={quantity}
-              onChange={(e) => handleQuantityChange(e.target.value)}
-              className="flex-1 font-mono"
-            />
-            <span className="flex items-center text-sm text-muted-foreground">{asset}</span>
-          </div>
-        </div>
+        try {
+            await onSubmit(order)
+            setMessage({ type: 'success', text: 'Order placed successfully!' })
+            form.setValue('quantity', '')
+            form.setValue('notional', '')
+            form.setValue('price', midPrice.toFixed(2))
+        } catch (error) {
+            setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Order failed' })
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
 
-        <div>
-          <label className="text-sm font-medium mb-2 block">Total</label>
-          <div className="flex gap-2">
-            <Input
-              type="text"
-              placeholder="0.00"
-              value={notional}
-              onChange={(e) => handleNotionalChange(e.target.value)}
-              className="flex-1 font-mono"
-            />
-            <span className="flex items-center text-sm text-muted-foreground">USD</span>
-          </div>
-        </div>
+    return (
+        <Card className="border-border/50 shadow-lg">
+            <CardHeader className="border-b border-border/50">
+                <CardTitle className="flex items-center gap-2 text-xl">
+                    Order Entry
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                {isLoading ? (
+                    <div className="space-y-6">
+                        <Skeleton className="h-10 w-full" />
+                        <div className="space-y-2">
+                            <Skeleton className="h-4 w-20" />
+                            <Skeleton className="h-10 w-full" />
+                            <div className="flex gap-2">
+                                <Skeleton className="h-8 w-16" />
+                                <Skeleton className="h-8 w-16" />
+                                <Skeleton className="h-8 w-16" />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Skeleton className="h-4 w-16" />
+                            <Skeleton className="h-10 w-full" />
+                        </div>
+                        <div className="space-y-2">
+                            <Skeleton className="h-4 w-12" />
+                            <Skeleton className="h-10 w-full" />
+                        </div>
+                        <Skeleton className="h-11 w-full" />
+                    </div>
+                ) : (
+                    <>
+                <Tabs value={side} onValueChange={(value) => setSide(value as OrderSide)}>
+                    <TabsList>
+                        <TabsTrigger value="BUY">
+                            Buy
+                        </TabsTrigger>
+                        <TabsTrigger value="SELL">
+                            Sell
+                        </TabsTrigger>
+                    </TabsList>
+                </Tabs>
 
-        {message && (
-          <div className={`p-3 rounded-md border ${
-            message.type === 'success' 
-              ? 'bg-primary/10 border-primary/50 text-primary' 
-              : 'bg-destructive/10 border-destructive/50 text-destructive'
-          }`}>
-            <p className="text-sm font-medium">{message.text}</p>
-          </div>
-        )}
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+                        <FormField
+                            control={form.control}
+                            name="price"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Limit Price</FormLabel>
+                                    <FormControl>
+                                        <div className="flex gap-2">
+                                            <CurrencyInput
+                                                placeholder="0.00"
+                                                value={field.value}
+                                                onValueChange={handlePriceChange}
+                                                decimalsLimit={2}
+                                                allowNegativeValue={false}
+                                                className="flex-1"
+                                            />
+                                            <span className="flex items-center text-sm text-muted-foreground">USD</span>
+                                        </div>
+                                    </FormControl>
+                                    <div className="flex gap-2 mt-2">
+                                        <Button type="button" size="sm" variant="outline" onClick={() => handleQuickFill('MID')} className="text-xs">
+                                            MID
+                                        </Button>
+                                        <Button type="button" size="sm" variant="outline" onClick={() => handleQuickFill('BID')} className="text-xs">
+                                            BID
+                                        </Button>
+                                        <Button type="button" size="sm" variant="outline" onClick={() => handleQuickFill('ASK')} className="text-xs">
+                                            ASK
+                                        </Button>
+                                    </div>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
 
-        <Button
-          onClick={handleSubmit}
-          disabled={isSubmitting}
-          variant={side === 'SELL' ? 'destructive' : 'default'}
-          className="w-full h-11 font-semibold"
-        >
-          <IconShoppingCart className="size-4 mr-2" />
-          {isSubmitting ? 'Submitting...' : `${side === 'BUY' ? 'Buy' : 'Sell'} ${asset}`}
-        </Button>
-      </CardContent>
-    </Card>
-  )
+                        <FormField
+                            control={form.control}
+                            name="quantity"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Amount</FormLabel>
+                                    <FormControl>
+                                        <div className="flex gap-2">
+                                            <CurrencyInput
+                                                placeholder="0.00000000"
+                                                value={field.value}
+                                                onValueChange={handleQuantityChange}
+                                                decimalsLimit={8}
+                                                allowNegativeValue={false}
+                                                className="flex-1"
+                                            />
+                                            <span className="flex items-center text-sm text-muted-foreground">{asset}</span>
+                                        </div>
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+
+                        <FormField
+                            control={form.control}
+                            name="notional"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Total</FormLabel>
+                                    <FormControl>
+                                        <div className="flex gap-2">
+                                            <CurrencyInput
+                                                placeholder="0.00"
+                                                value={field.value}
+                                                onValueChange={handleNotionalChange}
+                                                decimalsLimit={2}
+                                                allowNegativeValue={false}
+                                                className="flex-1"
+                                            />
+                                            <span className="flex items-center text-sm text-muted-foreground">USD</span>
+                                        </div>
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+
+                        {message && (
+                            <div className={`p-3 rounded-md border ${message.type === 'success'
+                                ? 'bg-primary/10 border-primary/50 text-primary'
+                                : 'bg-destructive/10 border-destructive/50 text-destructive'
+                                }`}>
+                                <p className="text-sm font-medium">{message.text}</p>
+                            </div>
+                        )}
+
+                        <Button
+                            type="submit"
+                            disabled={isSubmitting}
+                            variant={side === 'SELL' ? 'destructive' : 'default'}
+                            className="w-full h-11 font-semibold"
+                        >
+                            <IconShoppingCart className="size-4 mr-2" />
+                            {isSubmitting ? 'Submitting...' : `${side === 'BUY' ? 'Buy' : 'Sell'} ${asset}`}
+                        </Button>
+                    </form>
+                </Form>
+                </>
+                )}
+            </CardContent>
+        </Card>
+    )
 }
