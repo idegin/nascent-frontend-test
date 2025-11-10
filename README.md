@@ -23,17 +23,6 @@ This solution implements a cryptocurrency trading interface for BTC and ETH with
 - Real-time validation improves user experience
 - Reduces boilerplate code for form handling
 
-**Currency Input: react-currency-input-field**
-- Automatic formatting with thousands separators
-- Configurable decimal precision for different currency types
-- Handles edge cases like division by zero in calculations
-- Seamless integration with react-hook-form
-
-**Icons: @tabler/icons-react**
-- Lightweight icon library
-- Consistent visual language
-- Easy to use with React components
-
 **Testing: @testing-library/react**
 - Already configured with Create React App
 - Encourages testing user behavior over implementation details
@@ -59,6 +48,7 @@ This solution implements a cryptocurrency trading interface for BTC and ETH with
 - Currency formatting with commas and decimal limits
 - Division by zero protection in calculations
 - Professional UI with shadcn components
+- Comprehensive test coverage
 
 **Bonus Features (Not Implemented):**
 - Display Trades
@@ -124,14 +114,16 @@ Additional work needed with more time:
 2. Console warnings from library internals during tests (cosmetic only)
 3. No UX design artifacts created due to time constraints
 
-### Future Enhancements
+### Future Improvements
 
+- **TanStack Query Integration**: Implement data caching and revalidation to prevent order book from reloading on asset tab switches
+- **Mobile Responsiveness**: Optimize layout and interactions for mobile devices
+- **Dark Mode**: Add theme toggle with dark/light mode support
 - WebSocket integration for real-time order book updates
 - Order history and trade display
 - Advanced charting and price visualization
 - Multiple order types (market, stop-loss, etc.)
 - Portfolio tracking
-- Dark/light mode toggle
 
 ## About the Template
 
